@@ -1,18 +1,11 @@
 import './ExploreContainer.css';
-import {
-    IonCol, IonContent,
-    IonGrid,
-    IonRow,
-    useIonViewWillEnter,
-    IonSlides,
-    IonSlide, IonCard, IonCardHeader
-} from "@ionic/react";
+import {IonCard, IonCardHeader, IonCol, IonGrid, IonRow, IonSlide, IonSlides, useIonViewWillEnter} from "@ionic/react";
 
 import React, {useState} from 'react';
 
 import TinderCard from 'react-tinder-card'
 import axios from "axios";
-import {Storage} from "@capacitor/storage";
+import { Storage } from "@capacitor/storage";
 
 interface ContainerProps {
 }
@@ -23,12 +16,6 @@ const ExploreContainer: React.FC<ContainerProps> = () => {
         initialSlide: 1,
         speed: 400
     };
-
-    const getBearer = async () => {
-        const { value } = await Storage.get({ key: 'bearer' });
-        return value;
-    };
-
     const shopsLoading = [
         {
             name: 'Fetching..',
@@ -51,12 +38,43 @@ const ExploreContainer: React.FC<ContainerProps> = () => {
     const [lastDirection, setLastDirection] = useState()
     const [shops, setShops] = useState(shopsLoading)
 
+    const getBearer = async () => {
+        const { value } = await Storage.get({ key: 'bearer' });
+        return value;
+    };
+
+    const getBookmarkList = async () => {
+        const { value } = await Storage.get({ key: 'likedShops' });
+
+        if (value == null) return JSON.parse("[]");
+
+        try {
+            return JSON.parse(value || "[]");
+        } catch {
+            return JSON.parse("[]");
+        }
+    };
+
+    const setBookmarkList = async (value: any[]) => {
+        await getBookmarkList().then((oldMarks: any)=>{
+
+            if (!!oldMarks.find((element: any[]) => element == value)) return
+
+            oldMarks.push(value);
+            Storage.set({
+                key: 'likedShops',
+                value: JSON.stringify(oldMarks),
+            });
+        });
+    };
+
     const getShopsApi = (auth_token: string): any => {
         let stat = false;
         axios.get(`${BE_URL}/shops/list/`,
             {headers: {"Access-Control-Allow-Origin": "*","Authorization": auth_token }}).then((res: any) => {
             if (res.status == 200) {
-                setShops(res.data);
+                setShops(res.data)
+                console.log(res.data);
                 stat = true;
             } else {
                 setShops(shopsError);
@@ -90,12 +108,16 @@ const ExploreContainer: React.FC<ContainerProps> = () => {
         });
     });
 
-    const swiped = (direction: any, nameToDelete: any) => {
+    const swiped = async (direction: any, shop: any) => {
+        if (direction == "right") {
+            await setBookmarkList(shop);
+        }
         setLastDirection(direction)
     }
 
     const outOfFrame = (name: any) => {
-        console.log(name + ' left the screen!')
+        return true;
+        // console.log(name, ' left the screen!')
     }
     return (
         <IonGrid className={"ion-align-items-end vertical-align"}>
@@ -103,7 +125,7 @@ const ExploreContainer: React.FC<ContainerProps> = () => {
                 <IonCol>
                     {shops.map((shop) =>
                         <div>
-                            <TinderCard className='swipe' key={shop.name} onSwipe={(dir) => swiped(dir, shop.name)} onCardLeftScreen={() => outOfFrame(shop.name)}>
+                            <TinderCard className='swipe' key={shop.name} onSwipe={(dir) => swiped(dir, shop)} onCardLeftScreen={() => outOfFrame(shop)}>
                                 <div style={{ backgroundImage: "url('" + shop.imageUrl + "')" }} className='card'>
                                     <div className="bottomTextContainer">
                                         <h2 className="cardText">{shop.name}</h2>
@@ -113,6 +135,12 @@ const ExploreContainer: React.FC<ContainerProps> = () => {
                                 </div>
                                 <br></br>
                                 <IonSlides options={slideOpts}>
+                                    { shop.comments.length == 0 &&
+                                        <IonCard>
+                                            <IonCardHeader></IonCardHeader>
+                                            <IonCardHeader>No comments added yet.</IonCardHeader>
+                                        </IonCard>
+                                    }
                                     {shop.comments.map((comment) =>
                                         <IonSlide>
                                             <IonCard>
